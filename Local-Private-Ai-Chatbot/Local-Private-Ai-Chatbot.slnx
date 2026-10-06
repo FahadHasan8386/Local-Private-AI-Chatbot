@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Local-Private-Ai-Chatbot.Api/Local-Private-Ai-Chatbot.Api.csproj" />
+  <Project Path="Local-Private-Ai-Chatbot.Web/Local-Private-Ai-Chatbot.Web.csproj" />
+</Solution>
