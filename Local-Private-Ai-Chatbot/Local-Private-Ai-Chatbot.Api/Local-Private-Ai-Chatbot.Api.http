@@ -1,6 +1,0 @@
-@Local_Private_Ai_Chatbot.Api_HostAddress = http://localhost:5002
-
-GET {{Local_Private_Ai_Chatbot.Api_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###
