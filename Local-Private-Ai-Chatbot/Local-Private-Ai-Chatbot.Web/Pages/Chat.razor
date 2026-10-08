@@ -1,4 +1,251 @@
 ﻿@page "/chat"
 
+@using Local_Private_Ai_Chatbot.Web.Services
+@using Local_Private_Ai_Chatbot.Web.Models
 
-<PageTitle>Local Ai Chat</PageTitle>
+@inject ChatApiClient Api
+@inject IJSRuntime JS
+
+<PageTitle>Local AI Chat</PageTitle>
+
+<div class="chat-page">
+
+    <div class="chat">
+
+        <!-- Header -->
+        <header class="chat-header">
+
+            <div>
+                <h1>Local AI Chat</h1>
+                <span class="status">
+                    ● Local AI
+                </span>
+            </div>
+
+            <div class="tools">
+
+                @if (_models.Count > 0)
+                {
+                    <select @bind="_model" disabled="@_busy">
+                        @foreach (var model in _models)
+                        {
+                            <option value="@model">
+                                @model
+                            </option>
+                        }
+                    </select>
+                }
+
+                <button class="ghost"
+                        @onclick="Clear"
+                        disabled="@_busy">
+                    Clear
+                </button>
+
+            </div>
+
+        </header>
+
+
+        <!-- Messages -->
+        <div class="messages" id="messages">
+
+            @if (_messages.Count == 0)
+            {
+                <div class="empty">
+                    <div class="empty-icon">
+                        <span class="bi bi-robot"></span>
+                    </div>
+
+                    <h3>How can I help you?</h3>
+
+                    <p>
+                        Ask anything and get a response from your local AI.
+                    </p>
+                </div>
+            }
+
+            @foreach (var message in _messages)
+            {
+                <div class="msg @message.Role">
+
+                    <div class="bubble">
+
+                        @if (message.Content.Length == 0 && _busy)
+                        {
+                            <span class="typing">
+                                Thinking...
+                            </span>
+                        }
+                        else
+                        {
+                            @message.Content
+                        }
+
+                    </div>
+
+                </div>
+            }
+
+        </div>
+
+
+        <!-- Composer -->
+        <div class="composer">
+
+            <input @bind="_input"
+                   @bind:event="oninput"
+                   @onkeydown="OnKeyDown"
+                   placeholder="Type a message..."
+                   disabled="@_busy"
+                   autofocus />
+
+            @if (_busy)
+            {
+                <button class="stop"
+                        @onclick="Stop">
+                    Stop
+                </button>
+            }
+            else
+            {
+                <button @onclick="SendAsync"
+                        disabled="@string.IsNullOrWhiteSpace(_input)">
+                    <span class="bi bi-send"></span>
+                    Send
+                </button>
+            }
+
+        </div>
+
+    </div>
+
+</div>
+
+
+@code {
+
+    private readonly List<ChatMessage> _messages = new();
+
+    private List<string> _models = new();
+
+    private string? _model;
+
+    private string _input = string.Empty;
+
+    private bool _busy;
+
+    private CancellationTokenSource? _cts;
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _models = await Api.GetModelsAsync();
+
+            _model = _models.FirstOrDefault();
+        }
+        catch
+        {
+            // Ollama/API is not available.
+            // Server default model will be used.
+        }
+    }
+
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            await SendAsync();
+        }
+    }
+
+
+    private async Task SendAsync()
+    {
+        if (_busy || string.IsNullOrWhiteSpace(_input))
+            return;
+
+
+        // Add user message
+        var userMessage = new ChatMessage(
+            "user",
+            _input.Trim());
+
+        _messages.Add(userMessage);
+
+        _input = string.Empty;
+
+
+        // Copy conversation history
+        var history = _messages.ToList();
+
+
+        // Create empty assistant message
+        var assistantMessage = new ChatMessage(
+            "assistant",
+            string.Empty);
+
+        _messages.Add(assistantMessage);
+
+
+        _busy = true;
+
+        _cts = new CancellationTokenSource();
+
+
+        try
+        {
+            await foreach (var chunk in Api.StreamAsync(
+                history,
+                _model,
+                _cts.Token))
+            {
+                assistantMessage.Content += chunk;
+
+                StateHasChanged();
+
+                await JS.InvokeVoidAsync(
+                    "scrollToBottom",
+                    "messages");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // User clicked Stop.
+        }
+        catch (Exception ex)
+        {
+            assistantMessage.Content =
+                $"⚠️ Error: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+
+            _cts?.Dispose();
+
+            _cts = null;
+
+            StateHasChanged();
+        }
+    }
+
+
+    private void Stop()
+    {
+        _cts?.Cancel();
+    }
+
+
+    private void Clear()
+    {
+        if (_busy)
+            return;
+
+        _messages.Clear();
+    }
+
+}

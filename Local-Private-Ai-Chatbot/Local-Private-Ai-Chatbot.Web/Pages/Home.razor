@@ -1,7 +1,33 @@
 ﻿@page "/"
+
+@inject NavigationManager Navigation
+
 <PageTitle>Home</PageTitle>
-<div class="chat-icon-container">
-    <button class="btn btn-toggle" id="chat-toggle" aria-label="Toggle chat">
-        <span class="bi bi-chat"></span>
+
+<div class="home-page">
+
+    <h1>Welcome</h1>
+
+    <p>
+        This is your Local Private AI Chatbot.
+    </p>
+
+    <!-- Floating Chat Button -->
+    <button class="chat-float-button"
+            @onclick="OpenChat"
+            aria-label="Open AI Chat">
+
+        <i class="bi bi-robot"></i>
+
     </button>
+
 </div>
+
+@code {
+
+    private void OpenChat()
+    {
+        Navigation.NavigateTo("/chat");
+    }
+
+}
