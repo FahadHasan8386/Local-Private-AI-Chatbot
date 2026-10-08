@@ -35,10 +35,7 @@ builder.Services.AddHttpClient<IOllamaChatService, OllamaChatService>(
 
 var app = builder.Build();
 
-
-// ==================================================
 // Configure HTTP request pipeline
-// ==================================================
 
 if (app.Environment.IsDevelopment())
 {
