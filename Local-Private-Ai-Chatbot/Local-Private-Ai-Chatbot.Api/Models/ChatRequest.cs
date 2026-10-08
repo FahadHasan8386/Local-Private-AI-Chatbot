@@ -1,3 +1,3 @@
 ﻿namespace Local_Private_Ai_Chatbot.Api.Models;
 
-public record ChatRequest(List<ChatMessageDto> Message, string? Model);
+public record ChatRequest(List<ChatMessageDto> Messages, string? Model);

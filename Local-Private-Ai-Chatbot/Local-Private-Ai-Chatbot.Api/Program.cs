@@ -1,15 +1,45 @@
+
+using Local_Private_Ai_Chatbot.Api.Models;
+using Local_Private_Ai_Chatbot.Api.Services;
+using Microsoft.Extensions.Options;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// Add services to the container
 
 builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+
+// Ollama Configuration
+
+builder.Services.Configure<OllamaOptions>(
+    builder.Configuration.GetSection("Ollama"));
+
+
+// Ollama HttpClient
+
+builder.Services.AddHttpClient<IOllamaChatService, OllamaChatService>(
+    (serviceProvider, client) =>
+    {
+        var options = serviceProvider
+            .GetRequiredService<IOptions<OllamaOptions>>()
+            .Value;
+
+        client.BaseAddress = new Uri(options.BaseUrl);
+    });
+
+// Build application
+
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+
+// ==================================================
+// Configure HTTP request pipeline
+// ==================================================
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
