@@ -1,11 +1,8 @@
-
 using Local_Private_Ai_Chatbot.Api.Models;
 using Local_Private_Ai_Chatbot.Api.Services;
 using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
-
-// Add services to the container
 
 builder.Services.AddControllers();
 
@@ -13,16 +10,15 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 
-// Ollama Configuration
-
+// Ollama configuration
 builder.Services.Configure<OllamaOptions>(
     builder.Configuration.GetSection("Ollama"));
 
 
-// Ollama HttpClient
-
-builder.Services.AddHttpClient<IOllamaChatService, OllamaChatService>(
-    (serviceProvider, client) =>
+// Ollama service
+builder.Services.AddHttpClient<
+    IOllamaChatService,
+    OllamaChatService>((serviceProvider, client) =>
     {
         var options = serviceProvider
             .GetRequiredService<IOptions<OllamaOptions>>()
@@ -31,11 +27,21 @@ builder.Services.AddHttpClient<IOllamaChatService, OllamaChatService>(
         client.BaseAddress = new Uri(options.BaseUrl);
     });
 
-// Build application
+
+// CORS
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("BlazorClient", policy =>
+    {
+        policy
+            .WithOrigins("https://localhost:7006")
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
+
 
 var app = builder.Build();
-
-// Configure HTTP request pipeline
 
 if (app.Environment.IsDevelopment())
 {
@@ -44,6 +50,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseCors("BlazorClient");
 
 app.UseAuthorization();
 
