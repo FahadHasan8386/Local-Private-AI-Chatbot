@@ -1,4 +1,6 @@
-﻿using Local_Private_Ai_Chatbot.Api.Models;
+﻿
+using Local_Private_Ai_Chatbot.Api.Models;
+using Microsoft.Extensions.Options;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 
@@ -9,10 +11,10 @@ public class OllamaChatService : IOllamaChatService
     private readonly HttpClient _http;
     private readonly OllamaOptions _options;
 
-    public OllamaChatService( HttpClient http, OllamaOptions options)
+    public OllamaChatService(HttpClient http,IOptions<OllamaOptions> options)
     {
         _http = http;
-        _options = options;
+        _options = options.Value;
     }
 
     public async IAsyncEnumerable<string> ChatAsync(
@@ -20,10 +22,17 @@ public class OllamaChatService : IOllamaChatService
         string? model,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        var selectedModel = string.IsNullOrWhiteSpace(model)
+            || model == "string"? _options.Model: model;
+
         var request = new
         {
-            model = model ?? _options.Model,
-            messages,
+            model = selectedModel,
+            messages = messages.Select(m => new
+            {
+                role = m.Role,
+                content = m.Content
+            }),
             stream = true
         };
 
@@ -35,32 +44,28 @@ public class OllamaChatService : IOllamaChatService
         response.EnsureSuccessStatusCode();
 
         await using var stream =
-            await response.Content.ReadAsStreamAsync(
-                cancellationToken);
+            await response.Content.ReadAsStreamAsync(cancellationToken);
 
         using var reader = new StreamReader(stream);
 
-        while (await reader.ReadLineAsync(cancellationToken) is string line)
+        while (await reader.ReadLineAsync(cancellationToken) is { } line)
         {
             if (string.IsNullOrWhiteSpace(line))
                 continue;
 
             using var json = JsonDocument.Parse(line);
+            var root = json.RootElement;
 
-            if (json.RootElement.TryGetProperty(
-                    "message",
-                    out var message))
+            if (root.TryGetProperty("message", out var message) &&
+                message.TryGetProperty("content", out var content))
             {
-                var content =
-                    message.GetProperty("content").GetString();
+                var text = content.GetString();
 
-                if (!string.IsNullOrEmpty(content))
-                    yield return content;
+                if (!string.IsNullOrEmpty(text))
+                    yield return text;
             }
 
-            if (json.RootElement.TryGetProperty(
-                    "done",
-                    out var done) &&
+            if (root.TryGetProperty("done", out var done) &&
                 done.GetBoolean())
             {
                 yield break;
@@ -71,16 +76,22 @@ public class OllamaChatService : IOllamaChatService
     public async Task<List<string>> GetModelsAsync(
         CancellationToken cancellationToken)
     {
-        var response = await _http.GetFromJsonAsync<JsonDocument>(
+        using var response = await _http.GetAsync(
             "api/tags",
             cancellationToken);
 
-        return response?
-            .RootElement
+        response.EnsureSuccessStatusCode();
+
+        using var document = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+
+        return document.RootElement
             .GetProperty("models")
             .EnumerateArray()
-            .Select(x => x.GetProperty("name").GetString()!)
-            .ToList()
-            ?? [];
+            .Select(m => m.GetProperty("name").GetString())
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name!)
+            .ToList();
     }
 }
